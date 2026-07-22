@@ -5,6 +5,11 @@
 #define ESTABLISH 3
 #define TRANSMIT 4
 
+#define WAIT 100
+#define HEADER_PULSE 150
+#define DIGIT_PULSE 100
+
+
 int dummyPin = 6;  // simulate the signal from receiver
 int txPin = 3;
 int rxPin = 2;
@@ -25,7 +30,7 @@ const int stepsPerRevolution = 2048;
 bool motorEnabled = true;
 int sweepDeg = 60;
 int count = 0;
-int waitTime = 100;  // number of cycles to wait
+int waitTime = WAIT;  // number of cycles to wait
 bool inputted = false;
 int incoming = 0;
 
@@ -54,15 +59,13 @@ void loop() {
     while (Serial.available() > 0) {
       Serial.read();
     }
-  }
-  else if (Serial.available() > 0 && inputted){
+  } else if (Serial.available() > 0 && inputted) {
     Serial.println("Transmission in progress");
     // clear other non-digit numbers
     while (Serial.available() > 0) {
       Serial.read();
     }
-  }
-  else if (inputted){
+  } else if (inputted) {
     transmitLoop(incoming);
   }
 }
@@ -90,7 +93,7 @@ void transmitLoop(int num) {
     sendLow(txPin, gapMs);
     Serial.println("Transmitted burst");
     state = ESTABLISH;
-    waitTime = 100;
+    waitTime = WAIT;
   } else if (state == ESTABLISH) {
 
     //allow some time to get signal
@@ -101,7 +104,7 @@ void transmitLoop(int num) {
     }
 
     if (rxDetected) {
-      Serial.print("received signal");
+      Serial.println("received signal");
       state = TRANSMIT;
       rxDetected = false;
     } else if (waitTime > 0) {
@@ -117,7 +120,10 @@ void transmitLoop(int num) {
   } else if (state == TRANSMIT) {
     // transmit encoded message
     delay(5);  // wait 5 ms to allow receiver's IR LED to stop
-
+    String num_str = String(num);
+    for (char c : num_str){
+      sendDigit(c - '0');
+    }
     Serial.println("Emitting");
     state = ROTATE;
     count = 0;
@@ -152,5 +158,20 @@ void sendLow(int pin, int width) {
 
 void sendDigit(int digit) {
   // assume single digit
-  // header: 
+  // header: 150ms of high + 150ms low
+  sendHigh(txPin, HEADER_PULSE);
+  sendLow(txPin, HEADER_PULSE);
+  // get binary
+  bool bits[4];  // max 4 bits
+  for (int i = 0; i < 4; i++) {
+    // bitRead(value, bit_position) reads from right (0) to left (15)
+    if (bitRead(digit, i) == 0){
+      sendLow(txPin, DIGIT_PULSE);
+    }
+    else{
+      sendHigh(txPin,DIGIT_PULSE);
+    }
+  }
+  Serial.print("sent digit: ");
+  Serial.println(digit);
 }
