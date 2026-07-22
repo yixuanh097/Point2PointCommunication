@@ -26,6 +26,8 @@ bool motorEnabled = true;
 int sweepDeg = 60;
 int count = 0;
 int waitTime = 100;  // number of cycles to wait
+bool inputted = false;
+int incoming = 0;
 
 Stepper myStepper(stepsPerRevolution, 8, 10, 9, 11);
 
@@ -42,7 +44,30 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  // read input
+  if (Serial.available() > 0 && !inputted) {
+    incoming = Serial.parseInt();
+    inputted = true;
+    Serial.print("Received Incoming: ");
+    Serial.println(incoming, DEC);
+    // clear other non-digit numbers
+    while (Serial.available() > 0) {
+      Serial.read();
+    }
+  }
+  else if (Serial.available() > 0 && inputted){
+    Serial.println("Transmission in progress");
+    // clear other non-digit numbers
+    while (Serial.available() > 0) {
+      Serial.read();
+    }
+  }
+  else if (inputted){
+    transmitLoop(incoming);
+  }
+}
+
+void transmitLoop(int num) {
   if (motorEnabled && state == ROTATE) {
     delay(5);
     myStepper.step(stepsPerRevolution / 180);
@@ -54,55 +79,49 @@ void loop() {
     if (count == sweepDeg) {
       state = SEARCH;
       count = 0;
-    }
-    else{
+    } else {
       state = ROTATE;
     }
   }
 
   else if (state == SEARCH) {
     // transmit
-    tone(txPin, 38000);  // 38kHz carrier ON
-    delay(burstMs);
-    noTone(txPin);  // carrier OFF
-    delay(gapMs);
+    sendHigh(txPin, burstMs);
+    sendLow(txPin, gapMs);
     Serial.println("Transmitted burst");
     state = ESTABLISH;
     waitTime = 100;
-  } 
-  else if (state == ESTABLISH) {
-    
+  } else if (state == ESTABLISH) {
+
     //allow some time to get signal
-    if (waitTime == 50){
-      tone(dummyPin, 38000);  // 38kHz carrier ON
-      delay(burstMs*10);
-      noTone(dummyPin);  // carrier OFF
-      delay(gapMs);
+    if (waitTime == 50) {
+      sendHigh(dummyPin, burstMs * 10);
+      sendLow(dummyPin, gapMs);
       Serial.println("Transmitted dummy burst");
     }
-    // detect falling edge
+
     if (rxDetected) {
       Serial.print("received signal");
       state = TRANSMIT;
       rxDetected = false;
-    }
-    else if (waitTime > 0){
+    } else if (waitTime > 0) {
       state = ESTABLISH;
-      waitTime --;
-      Serial.print("wait time:");
-      Serial.println(waitTime);
-    }
-    else {
+      waitTime--;
+      // Serial.print("wait time:");
+      //Serial.println(waitTime);
+    } else {
       Serial.println("start rotation");
       state = ROTATE;
       count = 0;
     }
   } else if (state == TRANSMIT) {
     // transmit encoded message
-    delay(2000);
+    delay(5);  // wait 5 ms to allow receiver's IR LED to stop
+
     Serial.println("Emitting");
     state = ROTATE;
     count = 0;
+    inputted = false;  // can start new transmission
   }
 
 
@@ -111,15 +130,27 @@ void loop() {
     Serial.println("Stopped");
     digitalWrite(motorEnablePin, LOW);
   }
-
-  // check for received signal
 }
 
-void irTriggered(){
-  if (state == ESTABLISH){
+void irTriggered() {
+  if (state == ESTABLISH) {
     rxDetected = true;  // filter out noises
-  }
-  else {
+  } else {
     rxDetected = false;
   }
+}
+
+void sendHigh(int pin, int width) {
+  tone(pin, 38000);  // 38kHz carrier ON
+  delay(width);
+}
+
+void sendLow(int pin, int width) {
+  noTone(pin);  // carrier OFF
+  delay(width);
+}
+
+void sendDigit(int digit) {
+  // assume single digit
+  // header: 
 }
