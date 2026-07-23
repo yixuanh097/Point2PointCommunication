@@ -5,7 +5,7 @@
 const int rxPin = 2;
 const int txPin = 3;
 
-int prev = HIGH;
+volatile int prev = HIGH;
 
 const int burstMs = 100;
 const int gapMs = 100;
@@ -45,11 +45,12 @@ void loop() {
       //Serial.println("Awaiting for header");
       if (receivedLow){
         Serial.println("Received edge");
-        delay(headerWaitTime - sampleTime /2);
+        delay(100);
         stateRx = SAMPLE;
         startTimeRx = millis();
         receivedLow = false;
         receivedHigh = false;
+        prev = HIGH;
       }
     }
   else if (stateRx == SAMPLE) {
@@ -66,15 +67,14 @@ void loop() {
       else if ((millis() - startTimeRx) >= sampleTime) {
         if (receivedHigh) {
           readData |= (1 << countRx);
-          receivedHigh = false;
+          
           Serial.println("Received Data high");
         } else {
-          readData = readData;
           Serial.println("Received Data Low");
         }
-        Serial.print("Read data:");
-      Serial.println(readData);
-
+        //Serial.print("Read data:");
+      //Serial.println(readData);
+      receivedHigh = false;
         startTimeRx = millis();
         countRx++;
       }
@@ -83,13 +83,15 @@ void loop() {
 }
 
 void Triggered(){
-  if (prev == LOW && digitalRead(rxPin) == HIGH){  // rising edge: header
+  //receivedHigh = true;
+  //receivedLow = true;
+  if (digitalRead(rxPin) == HIGH){  // rising edge: header
     receivedLow = true;
   }
-  else if (prev == HIGH && digitalRead(rxPin) == LOW){
+  else if (digitalRead(rxPin) == LOW){
     receivedHigh = true;
   }
-  prev = digitalRead(rxPin);
+  //prev = digitalRead(rxPin);
 }
 
 void sendHigh(int pin, int width) {
