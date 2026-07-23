@@ -5,10 +5,13 @@
 #define ESTABLISH 3
 #define TRANSMIT 4
 
-#define WAIT 100
+#define WAIT 1000
 #define HEADER_PULSE 150
 #define DIGIT_PULSE 100
 
+#define IDLE 0   // in idle state, wait for a burst from transmitter
+#define AWAIT 1  // wait for header signal
+#define SAMPLE 2
 
 int dummyPin = 6;  // simulate the signal from receiver
 int txPin = 3;
@@ -19,18 +22,29 @@ const int burstMs = 50;
 const int gapMs = 200;
 const int debounceMs = 30;
 
+bool recMode = false;
 
-int state = ROTATE;
+int state = TRANSMIT;
+int stateRx = IDLE;
 
-int prev = HIGH;
-bool rxDetected = false;
+const int headerWaitTime = 150;
+const int sampleTime = 100;
 
+volatile bool rxDetected = false;
+unsigned long lastTrigger = 0;
+
+int count = 0;
+int readData = 0;
+bool receivedHigh = false;
+bool receivedLow = false;
+
+unsigned long startTimeRx = 0;
 
 const int stepsPerRevolution = 2048;
 bool motorEnabled = true;
-int sweepDeg = 60;
-int count = 0;
-int waitTime = WAIT;  // number of cycles to wait
+int sweepDeg = 10;
+int countRx = 0;
+unsigned long startTime = 0;
 bool inputted = false;
 int incoming = 0;
 
@@ -38,6 +52,7 @@ Stepper myStepper(stepsPerRevolution, 8, 10, 9, 11);
 
 void setup() {
   // put your setup code here, to run once:
+  myStepper.setSpeed(10);
   pinMode(txPin, OUTPUT);
   pinMode(dummyPin, OUTPUT);
   pinMode(rxPin, INPUT_PULLUP);
@@ -45,10 +60,51 @@ void setup() {
   Serial.begin(9600);
   Serial.println("Initializing");
   digitalWrite(motorEnablePin, HIGH);
-  attachInterrupt(digitalPinToInterrupt(rxPin), irTriggered, FALLING);
+  if (recMode) {
+    attachInterrupt(digitalPinToInterrupt(rxPin), fallingTriggered, FALLING);
+    attachInterrupt(digitalPinToInterrupt(rxPin), risingTriggered, RISING);
+    state = TRANSMIT;
+    stateRx = AWAIT;
+  }
 }
 
 void loop() {
+  if (recMode) {
+    if (stateRx == AWAIT){
+      //Serial.println("Awaiting for header");
+      if (receivedLow){
+        Serial.println("Received edge");
+        delay(headerWaitTime - sampleTime /2);
+        stateRx = SAMPLE;
+        startTimeRx = millis();
+      }
+    }
+    if (stateRx == SAMPLE) {
+
+      if (countRx > 3) {
+        // already sampled four times
+        countRx = 0;
+        stateRx = IDLE;
+        Serial.println("Sampling Complete");
+      }
+      else if ((millis() - startTimeRx) >= sampleTime) {
+        if (receivedHigh) {
+          readData += (1 << countRx);
+          receivedHigh = false;
+          Serial.println("Received Data high");
+        } else {
+          readData = readData;
+          Serial.println("Received Data Low");
+        }
+        Serial.print("Read data:");
+      Serial.println(readData);
+
+        startTimeRx = millis();
+        countRx++;
+      }
+      
+    }
+  }
   // read input
   if (Serial.available() > 0 && !inputted) {
     incoming = Serial.parseInt();
@@ -66,7 +122,20 @@ void loop() {
       Serial.read();
     }
   } else if (inputted) {
-    transmitLoop(incoming);
+    if (state == TRANSMIT) {
+    detachInterrupt(digitalPinToInterrupt(rxPin));
+    // transmit encoded message
+    //delay(5);  // wait 5 ms to allow receiver's IR LED to stop
+    String num_str = String(incoming);
+    for (char c : num_str) {
+      sendDigit(c - '0');
+    }
+    Serial.println("Emitting");
+    state = ROTATE;
+    count = 0;
+    inputted = false;  // can start new transmission
+  }
+    //transmitLoop(incoming);
   }
 }
 
@@ -90,26 +159,31 @@ void transmitLoop(int num) {
   else if (state == SEARCH) {
     // transmit
     sendHigh(txPin, burstMs);
-    sendLow(txPin, gapMs);
+    sendLow(txPin, gapMs / 10);
     Serial.println("Transmitted burst");
+    attachInterrupt(digitalPinToInterrupt(rxPin), irTriggered, FALLING);
+    rxDetected = false;
     state = ESTABLISH;
-    waitTime = WAIT;
+    startTime = millis();
+    lastTrigger = millis();
   } else if (state == ESTABLISH) {
 
     //allow some time to get signal
-    if (waitTime == 50) {
+    if (millis() - startTime == 50) {
       sendHigh(dummyPin, burstMs * 10);
       sendLow(dummyPin, gapMs);
       Serial.println("Transmitted dummy burst");
     }
 
     if (rxDetected) {
+      if (millis() - lastTrigger > debounceMs) {
+        state = TRANSMIT;
+        rxDetected = false;
+        lastTrigger = millis();
+      }
       Serial.println("received signal");
-      state = TRANSMIT;
-      rxDetected = false;
-    } else if (waitTime > 0) {
+    } else if (millis() - startTime < WAIT) {
       state = ESTABLISH;
-      waitTime--;
       // Serial.print("wait time:");
       //Serial.println(waitTime);
     } else {
@@ -118,10 +192,11 @@ void transmitLoop(int num) {
       count = 0;
     }
   } else if (state == TRANSMIT) {
+    detachInterrupt(digitalPinToInterrupt(rxPin));
     // transmit encoded message
-    delay(5);  // wait 5 ms to allow receiver's IR LED to stop
+    //delay(5);  // wait 5 ms to allow receiver's IR LED to stop
     String num_str = String(num);
-    for (char c : num_str){
+    for (char c : num_str) {
       sendDigit(c - '0');
     }
     Serial.println("Emitting");
@@ -139,21 +214,23 @@ void transmitLoop(int num) {
 }
 
 void irTriggered() {
+  //Serial.println("Triggered");
   if (state == ESTABLISH) {
-    rxDetected = true;  // filter out noises
-  } else {
-    rxDetected = false;
+    rxDetected = true;
   }
 }
 
 void sendHigh(int pin, int width) {
   tone(pin, 38000);  // 38kHz carrier ON
   delay(width);
+  noTone(pin);
+  Serial.println("send high");
 }
 
 void sendLow(int pin, int width) {
   noTone(pin);  // carrier OFF
   delay(width);
+  Serial.println("send low");
 }
 
 void sendDigit(int digit) {
@@ -165,13 +242,38 @@ void sendDigit(int digit) {
   bool bits[4];  // max 4 bits
   for (int i = 0; i < 4; i++) {
     // bitRead(value, bit_position) reads from right (0) to left (15)
-    if (bitRead(digit, i) == 0){
+    if (bitRead(digit, i) == 0) {
       sendLow(txPin, DIGIT_PULSE);
-    }
-    else{
-      sendHigh(txPin,DIGIT_PULSE);
+      
+    } else {
+      sendHigh(txPin, DIGIT_PULSE);
+  
     }
   }
   Serial.print("sent digit: ");
   Serial.println(digit);
+}
+
+
+void fallingTriggered() {
+  receivedHigh = true;
+  if (stateRx == IDLE) {
+    // transmit a "received" signal
+    sendHigh(txPin, burstMs);
+    sendLow(txPin, gapMs);
+    stateRx = AWAIT;
+    // Serial.println("Waiting for header signal");
+  } else if (stateRx == SAMPLE) {
+    receivedHigh = true;
+  }
+}
+
+void risingTriggered() {
+  if (stateRx == AWAIT) {
+    receivedLow = true;
+    // delay(headerWaitTime - sampleTime /2);
+    // stateRx = SAMPLE;
+    // //Serial.println("Sampling for data");
+    // startTimeRx = millis();  // record start time of sampling
+  }
 }
