@@ -22,7 +22,11 @@ const int burstMs = 50;
 const int gapMs = 200;
 const int debounceMs = 30;
 
+int debugPin = 7;
+
 bool recMode = false;
+int voltage = LOW; // emitter data pin voltage for plotting
+
 
 int state = TRANSMIT;
 int stateRx = IDLE;
@@ -56,6 +60,7 @@ void setup() {
   pinMode(txPin, OUTPUT);
   pinMode(dummyPin, OUTPUT);
   pinMode(rxPin, INPUT_PULLUP);
+  pinMode(debugPin, INPUT_PULLUP);
   pinMode(motorEnablePin, OUTPUT);
   Serial.begin(9600);
   Serial.println("Initializing");
@@ -69,6 +74,10 @@ void setup() {
 }
 
 void loop() {
+  //   Serial.println(millis());
+
+  // Serial.print("Transmit: ");
+  // Serial.println(voltage);
   if (recMode) {
     if (stateRx == AWAIT){
       //Serial.println("Awaiting for header");
@@ -131,7 +140,7 @@ void loop() {
       sendDigit(c - '0');
     }
     Serial.println("Emitting");
-    state = ROTATE;
+    state = TRANSMIT;
     count = 0;
     inputted = false;  // can start new transmission
   }
@@ -200,7 +209,7 @@ void transmitLoop(int num) {
       sendDigit(c - '0');
     }
     Serial.println("Emitting");
-    state = ROTATE;
+    state = TRANSMIT;
     count = 0;
     inputted = false;  // can start new transmission
   }
@@ -222,15 +231,36 @@ void irTriggered() {
 
 void sendHigh(int pin, int width) {
   tone(pin, 38000);  // 38kHz carrier ON
+  //voltage = HIGH;
+  // Serial.println(millis());
+  // Serial.print("Transmit:");
+  // Serial.println(voltage);
+Serial.println("send high");
+
   delay(width);
   noTone(pin);
-  Serial.println("send high");
+  //   Serial.println(millis());
+
+  // Serial.print("Transmit:");
+  // Serial.println(voltage);
+  // voltage = LOW;
+  // Serial.print("Transmit:");
+  // Serial.println(voltage);
+
+  
 }
 
 void sendLow(int pin, int width) {
+  // voltage = LOW;
+  //   Serial.println(millis());
+
+  // Serial.print("Transmit:");
+  // Serial.println(voltage);
   noTone(pin);  // carrier OFF
+   Serial.println("send low");
   delay(width);
-  Serial.println("send low");
+  //voltage = LOW;
+ 
 }
 
 void sendDigit(int digit) {

@@ -45,9 +45,10 @@ void loop() {
       //Serial.println("Awaiting for header");
       if (receivedLow){
         Serial.println("Received edge");
-        delay(100);
+        delay(headerWaitTime - sampleTime/2);
         stateRx = SAMPLE;
         startTimeRx = millis();
+        
         receivedLow = false;
         receivedHigh = false;
         prev = HIGH;
@@ -58,7 +59,9 @@ void loop() {
       if (countRx > 3) {
         // already sampled four times
         countRx = 0;
+        delay(sampleTime);
         stateRx = AWAIT;
+        receivedLow = false;
         Serial.println("Sampling Complete");
         Serial.print("Final Read data:");
       Serial.println(readData);
@@ -74,7 +77,7 @@ void loop() {
         }
         //Serial.print("Read data:");
       //Serial.println(readData);
-      receivedHigh = false;
+      //receivedHigh = false;
         startTimeRx = millis();
         countRx++;
       }
@@ -87,9 +90,11 @@ void Triggered(){
   //receivedLow = true;
   if (digitalRead(rxPin) == HIGH){  // rising edge: header
     receivedLow = true;
+    receivedHigh = false;
   }
   else if (digitalRead(rxPin) == LOW){
     receivedHigh = true;
+
   }
   //prev = digitalRead(rxPin);
 }
