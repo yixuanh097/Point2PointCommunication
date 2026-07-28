@@ -65,7 +65,7 @@ char hexaKeys[ROWS][COLS] = {
   {'7','8','9','C'},
   {'*','0','#','D'}
 };
-byte rowPins[ROWS] = {0, 1, A4, A5}; //connect to the row pinouts of the keypad
+byte rowPins[ROWS] = {0, 4, A4, A5}; //connect to the row pinouts of the keypad
 byte colPins[COLS] = {A0, A1, A2, A3}; //connect to the column pinouts of the keypad
 
 Keypad keyPad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
@@ -118,7 +118,6 @@ void loop() {
     //   Serial.read();
     // }
   } else if (inputted) {
-    Serial.println("here");
     if (state == TRANSMIT) {
     detachInterrupt(digitalPinToInterrupt(rxPin));
     // transmit encoded message
