@@ -1,9 +1,11 @@
 #include <Stepper.h>
+#include <Keypad.h>
 
 #define ROTATE 1
 #define SEARCH 2
 #define ESTABLISH 3
 #define TRANSMIT 4
+#define INPUT 5
 
 #define WAIT 1000
 #define HEADER_PULSE 150
@@ -54,6 +56,23 @@ int incoming = 0;
 
 Stepper myStepper(stepsPerRevolution, 8, 10, 9, 11);
 
+const byte ROWS = 4; //four rows
+const byte COLS = 4; //four columns
+//define the cymbols on the buttons of the keypads
+char hexaKeys[ROWS][COLS] = {
+  {'1','2','3','A'},
+  {'4','5','6','B'},
+  {'7','8','9','C'},
+  {'*','0','#','D'}
+};
+byte rowPins[ROWS] = {0, 1, A4, A5}; //connect to the row pinouts of the keypad
+byte colPins[COLS] = {A0, A1, A2, A3}; //connect to the column pinouts of the keypad
+
+Keypad keyPad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
+
+char key;
+String keys = "";
+
 void setup() {
   // put your setup code here, to run once:
   myStepper.setSpeed(10);
@@ -74,68 +93,37 @@ void setup() {
 }
 
 void loop() {
-  //   Serial.println(millis());
-
-  // Serial.print("Transmit: ");
-  // Serial.println(voltage);
-  if (recMode) {
-    if (stateRx == AWAIT){
-      //Serial.println("Awaiting for header");
-      if (receivedLow){
-        Serial.println("Received edge");
-        delay(headerWaitTime - sampleTime /2);
-        stateRx = SAMPLE;
-        startTimeRx = millis();
-      }
-    }
-    if (stateRx == SAMPLE) {
-
-      if (countRx > 3) {
-        // already sampled four times
-        countRx = 0;
-        stateRx = IDLE;
-        Serial.println("Sampling Complete");
-      }
-      else if ((millis() - startTimeRx) >= sampleTime) {
-        if (receivedHigh) {
-          readData += (1 << countRx);
-          receivedHigh = false;
-          Serial.println("Received Data high");
-        } else {
-          readData = readData;
-          Serial.println("Received Data Low");
-        }
-        Serial.print("Read data:");
-      Serial.println(readData);
-
-        startTimeRx = millis();
-        countRx++;
-      }
-      
+  key = keyPad.getKey();
+  
+  while (key != '#' && !inputted){
+    //
+    key = keyPad.getKey();
+    if (key && key != '#'){
+       keys += key;
+    Serial.println(keys);
     }
   }
-  // read input
-  if (Serial.available() > 0 && !inputted) {
-    incoming = Serial.parseInt();
+  if (key == '#' && !inputted) {
     inputted = true;
     Serial.print("Received Incoming: ");
-    Serial.println(incoming, DEC);
+    Serial.println(keys);
     // clear other non-digit numbers
-    while (Serial.available() > 0) {
-      Serial.read();
-    }
-  } else if (Serial.available() > 0 && inputted) {
+    // while (Serial.available() > 0) {
+    //   Serial.read();
+    // }
+  } else if (key == '#' && inputted) {
     Serial.println("Transmission in progress");
     // clear other non-digit numbers
-    while (Serial.available() > 0) {
-      Serial.read();
-    }
+    // while (Serial.available() > 0) {
+    //   Serial.read();
+    // }
   } else if (inputted) {
+    Serial.println("here");
     if (state == TRANSMIT) {
     detachInterrupt(digitalPinToInterrupt(rxPin));
     // transmit encoded message
     //delay(5);  // wait 5 ms to allow receiver's IR LED to stop
-    String num_str = String(incoming);
+    String num_str = String(keys);
     for (char c : num_str) {
       sendDigit(c - '0');
     }
