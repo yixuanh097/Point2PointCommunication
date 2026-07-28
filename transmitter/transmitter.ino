@@ -27,10 +27,10 @@ const int debounceMs = 30;
 int debugPin = 7;
 
 bool recMode = false;
-int voltage = LOW; // emitter data pin voltage for plotting
+int voltage = LOW;  // emitter data pin voltage for plotting
 
 
-int state = TRANSMIT;
+int state = INPUT;
 int stateRx = IDLE;
 
 const int headerWaitTime = 150;
@@ -56,19 +56,19 @@ int incoming = 0;
 
 Stepper myStepper(stepsPerRevolution, 8, 10, 9, 11);
 
-const byte ROWS = 4; //four rows
-const byte COLS = 4; //four columns
+const byte ROWS = 4;  //four rows
+const byte COLS = 4;  //four columns
 //define the cymbols on the buttons of the keypads
 char hexaKeys[ROWS][COLS] = {
-  {'1','2','3','A'},
-  {'4','5','6','B'},
-  {'7','8','9','C'},
-  {'*','0','#','D'}
+  { '1', '2', '3', 'A' },
+  { '4', '5', '6', 'B' },
+  { '7', '8', '9', 'C' },
+  { '*', '0', '#', 'D' }
 };
-byte rowPins[ROWS] = {0, 4, A4, A5}; //connect to the row pinouts of the keypad
-byte colPins[COLS] = {A0, A1, A2, A3}; //connect to the column pinouts of the keypad
+byte rowPins[ROWS] = { 0, 4, A4, A5 };    //connect to the row pinouts of the keypad
+byte colPins[COLS] = { A0, A1, A2, A3 };  //connect to the column pinouts of the keypad
 
-Keypad keyPad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
+Keypad keyPad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
 
 char key;
 String keys = "";
@@ -90,53 +90,20 @@ void setup() {
     state = TRANSMIT;
     stateRx = AWAIT;
   }
+  state = IDLE;
+  Serial.println("Press any button to start");
 }
 
 void loop() {
-  key = keyPad.getKey();
-  
-  while (key != '#' && !inputted){
-    //
+  if (state == IDLE) {
     key = keyPad.getKey();
-    if (key && key != '#'){
-       keys += key;
-    Serial.println(keys);
+    if (key) {
+      state = INPUT;
     }
+  } else if (state == INPUT) {
+    readKeyPad();
   }
-  if (key == '#' && !inputted) {
-    inputted = true;
-    Serial.print("Received Incoming: ");
-    Serial.println(keys);
-    // clear other non-digit numbers
-    // while (Serial.available() > 0) {
-    //   Serial.read();
-    // }
-  } else if (key == '#' && inputted) {
-    Serial.println("Transmission in progress");
-    // clear other non-digit numbers
-    // while (Serial.available() > 0) {
-    //   Serial.read();
-    // }
-  } else if (inputted) {
-    if (state == TRANSMIT) {
-    detachInterrupt(digitalPinToInterrupt(rxPin));
-    // transmit encoded message
-    //delay(5);  // wait 5 ms to allow receiver's IR LED to stop
-    String num_str = String(keys);
-    for (char c : num_str) {
-      sendDigit(c - '0');
-    }
-    Serial.println("Emitting");
-    state = TRANSMIT;
-    count = 0;
-    inputted = false;  // can start new transmission
-  }
-    //transmitLoop(incoming);
-  }
-}
-
-void transmitLoop(int num) {
-  if (motorEnabled && state == ROTATE) {
+  else if (motorEnabled && state == ROTATE) {
     delay(5);
     myStepper.step(stepsPerRevolution / 180);
     delay(5);
@@ -187,25 +154,56 @@ void transmitLoop(int num) {
       state = ROTATE;
       count = 0;
     }
-  } else if (state == TRANSMIT) {
+  }
+
+  else if (state == TRANSMIT && inputted) {
     detachInterrupt(digitalPinToInterrupt(rxPin));
     // transmit encoded message
     //delay(5);  // wait 5 ms to allow receiver's IR LED to stop
-    String num_str = String(num);
+    String num_str = String(keys);
     for (char c : num_str) {
       sendDigit(c - '0');
     }
     Serial.println("Emitting");
-    state = TRANSMIT;
+    state = INPUT;
     count = 0;
     inputted = false;  // can start new transmission
   }
+  //transmitLoop(incoming);
+}
 
-
-  if (!motorEnabled) {
-    // motor not enabled
-    Serial.println("Stopped");
-    digitalWrite(motorEnablePin, LOW);
+void readKeyPad() {
+  keys = "";  // clear
+  Serial.println("Reading input from keyPad");
+  key = keyPad.getKey();
+  if (key == '*') {
+    state = IDLE;
+    return;
+  }
+  while (key != '#' && !inputted) {
+    if (key == '*') {
+      state = IDLE;
+      Serial.println("Press any button to start");  // print upon entering new state
+      return;
+    }
+    //
+    key = keyPad.getKey();
+    if (key && key != '#') {
+      keys += key;
+      Serial.println(keys);
+    }
+  }
+  if (key == '#' && !inputted) {
+    inputted = true;
+    state = TRANSMIT;
+    Serial.print("Received Incoming: ");
+    Serial.println(keys);
+    // clear other non-digit numbers
+    // while (Serial.available() > 0) {
+    //   Serial.read();
+    // }
+  } else if (key == '#' && inputted) {
+    Serial.println("Transmission in progress");
   }
 }
 
@@ -222,7 +220,7 @@ void sendHigh(int pin, int width) {
   // Serial.println(millis());
   // Serial.print("Transmit:");
   // Serial.println(voltage);
-Serial.println("send high");
+  Serial.println("send high");
 
   delay(width);
   noTone(pin);
@@ -233,8 +231,6 @@ Serial.println("send high");
   // voltage = LOW;
   // Serial.print("Transmit:");
   // Serial.println(voltage);
-
-  
 }
 
 void sendLow(int pin, int width) {
@@ -244,10 +240,9 @@ void sendLow(int pin, int width) {
   // Serial.print("Transmit:");
   // Serial.println(voltage);
   noTone(pin);  // carrier OFF
-   Serial.println("send low");
+  Serial.println("send low");
   delay(width);
   //voltage = LOW;
- 
 }
 
 void sendDigit(int digit) {
@@ -261,10 +256,9 @@ void sendDigit(int digit) {
     // bitRead(value, bit_position) reads from right (0) to left (15)
     if (bitRead(digit, i) == 0) {
       sendLow(txPin, DIGIT_PULSE);
-      
+
     } else {
       sendHigh(txPin, DIGIT_PULSE);
-  
     }
   }
   Serial.print("sent digit: ");
