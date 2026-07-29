@@ -12,8 +12,10 @@ const int gapMs = 100;
 const int headerWaitTime = 150;
 const int sampleTime = 100;
 const int debounceTime = 30;
+const int waitSendTime = 100;
+const int waitHeadTime = 100;
 
-int stateRx = AWAIT;
+int stateRx = IDLE;
 int countRx = 0;
 int readData = 0;
 volatile bool receivedHigh = false;
@@ -29,15 +31,19 @@ void setup() {
   Serial.begin(9600);
   Serial.println("Initializing");
   attachInterrupt(digitalPinToInterrupt(rxPin), Triggered, CHANGE);
+  stateRx = IDLE;
 }
 
 void loop() {
   if (stateRx == IDLE){
     if (receivedHigh){
       Serial.println("scanning signal received");
+      delay(waitSendTime);
       sendHigh(txPin, burstMs);
-      stateRx = AWAIT;
+      delay(waitHeadTime);
       receivedHigh = false;
+      receivedLow = false;
+      stateRx = AWAIT;
     }
   }
   // put your main code here, to run repeatedly:
@@ -65,6 +71,9 @@ void loop() {
         Serial.println("Sampling Complete");
         Serial.print("Final Read data:");
       Serial.println(readData);
+      if (readData == 15){  // quit signal
+      stateRx = IDLE;
+      }
         readData = 0;
       }
       else if ((millis() - startTimeRx) >= sampleTime) {
@@ -101,6 +110,7 @@ void Triggered(){
 
 void sendHigh(int pin, int width) {
   tone(pin, 38000);  // 38kHz carrier ON
+  Serial.println("sent high");
   delay(width);
   noTone(pin);
 }

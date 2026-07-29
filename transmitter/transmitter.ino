@@ -98,7 +98,8 @@ void loop() {
   if (state == IDLE) {
     key = keyPad.getKey();
     if (key) {
-      state = INPUT;
+      state = ROTATE;
+      Serial.println("rotating");
     }
   } else if (state == INPUT) {
     readKeyPad();
@@ -122,28 +123,17 @@ void loop() {
   else if (state == SEARCH) {
     // transmit
     sendHigh(txPin, burstMs);
-    sendLow(txPin, gapMs / 10);
     Serial.println("Transmitted burst");
     attachInterrupt(digitalPinToInterrupt(rxPin), irTriggered, FALLING);
     rxDetected = false;
     state = ESTABLISH;
+    
     startTime = millis();
-    lastTrigger = millis();
   } else if (state == ESTABLISH) {
-
-    //allow some time to get signal
-    if (millis() - startTime == 50) {
-      sendHigh(dummyPin, burstMs * 10);
-      sendLow(dummyPin, gapMs);
-      Serial.println("Transmitted dummy burst");
-    }
-
+//Serial.println("entered establish state");
     if (rxDetected) {
-      if (millis() - lastTrigger > debounceMs) {
-        state = TRANSMIT;
+        state = INPUT;
         rxDetected = false;
-        lastTrigger = millis();
-      }
       Serial.println("received signal");
     } else if (millis() - startTime < WAIT) {
       state = ESTABLISH;
@@ -182,6 +172,7 @@ void readKeyPad() {
   }
   while (key != '#' && !inputted) {
     if (key == '*') {
+      sendDigit(15);  // quit signal: 1111
       state = IDLE;
       Serial.println("Press any button to start");  // print upon entering new state
       return;
@@ -209,9 +200,7 @@ void readKeyPad() {
 
 void irTriggered() {
   //Serial.println("Triggered");
-  if (state == ESTABLISH) {
     rxDetected = true;
-  }
 }
 
 void sendHigh(int pin, int width) {
