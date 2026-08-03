@@ -90,9 +90,21 @@ void loop() {
         
 
       Serial.println(readData);
+       printRow(1, "Status: Message OK");
+        char line[21];
+        snprintf(line, sizeof(line), "Data: %d", readData);
+        printRow(2, line);
+        char bits[21];
+        snprintf(bits, sizeof(bits), "Bits: %d%d%d%d",
+                 (readData >> 3) & 1, (readData >> 2) & 1,
+                 (readData >> 1) & 1, readData & 1);
+        printRow(3, bits);
+
       if (readData == 15){  // quit signal
       stateRx = IDLE;
       }
+
+
         readData = 0;
       }
       else if ((millis() - startTimeRx) >= sampleTime) {
@@ -110,15 +122,7 @@ void loop() {
         countRx++;
 
       }
-        printRow(1, "Status: Message OK");
-        char line[21];
-        snprintf(line, sizeof(line), "Data: %d", readData);
-        printRow(2, line);
-        char bits[21];
-        snprintf(bits, sizeof(bits), "Bits: %d%d%d%d",
-                 (readData >> 3) & 1, (readData >> 2) & 1,
-                 (readData >> 1) & 1, readData & 1);
-        printRow(3, bits);
+       
       
     }
 }
