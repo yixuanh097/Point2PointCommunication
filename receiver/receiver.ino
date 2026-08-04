@@ -2,8 +2,12 @@
 #define AWAIT 1  // wait for header signal
 #define SAMPLE 2
 
+#include <LiquidCrystal_I2C.h>
+
 const int rxPin = 2;
 const int txPin = 3;
+
+int lcdCol = 0;
 
 volatile int prev = HIGH;
 
@@ -23,15 +27,21 @@ volatile bool receivedLow = false;
 
 unsigned long startTimeRx = 0;
 
+LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 void setup() {
   // put your setup code here, to run once:
+    lcd.init();                      // initialize the lcd 
+  lcd.backlight();
   pinMode(rxPin, INPUT_PULLUP);
   pinMode(txPin, OUTPUT);
   Serial.begin(9600);
   Serial.println("Initializing");
   attachInterrupt(digitalPinToInterrupt(rxPin), Triggered, CHANGE);
   stateRx = IDLE;
+  Serial.println("Press any button to start");
+  lcd.setCursor(0, 0);
+  lcd.print("Receiver: Initializing");
 }
 
 void loop() {
@@ -44,6 +54,8 @@ void loop() {
       receivedHigh = false;
       receivedLow = false;
       stateRx = AWAIT;
+      lcd.setCursor(0, 0);
+      lcd.print("Scanning signal received");
     }
   }
   // put your main code here, to run repeatedly:
@@ -58,6 +70,7 @@ void loop() {
         receivedLow = false;
         receivedHigh = false;
         prev = HIGH;
+       
       }
     }
   else if (stateRx == SAMPLE) {
@@ -70,9 +83,21 @@ void loop() {
         receivedLow = false;
         Serial.println("Sampling Complete");
         Serial.print("Final Read data:");
+        
+      
       Serial.println(readData);
+      if (lcdCol == 0){
+         lcd.clear();
+      }
+      
+      lcd.setCursor(0, 0);
+      lcd.print("Samping Complete");
+      lcd.setCursor(lcdCol, 3);
+      lcd.print(readData);
+      lcdCol++;
       if (readData == 15){  // quit signal
       stateRx = IDLE;
+      lcdCol = 0;
       }
         readData = 0;
       }

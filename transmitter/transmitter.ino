@@ -1,5 +1,7 @@
 #include <Stepper.h>
 #include <Keypad.h>
+#include <LiquidCrystal_I2C.h>
+
 
 #define ROTATE 1
 #define SEARCH 2
@@ -56,6 +58,8 @@ int incoming = 0;
 
 Stepper myStepper(stepsPerRevolution, 8, 10, 9, 11);
 
+LiquidCrystal_I2C lcd(0x27, 20, 4);
+
 const byte ROWS = 4;  //four rows
 const byte COLS = 4;  //four columns
 //define the cymbols on the buttons of the keypads
@@ -65,7 +69,7 @@ char hexaKeys[ROWS][COLS] = {
   { '7', '8', '9', 'C' },
   { '*', '0', '#', 'D' }
 };
-byte rowPins[ROWS] = { 0, 4, A4, A5 };    //connect to the row pinouts of the keypad
+byte rowPins[ROWS] = {0, 4, 12, 7};    //connect to the row pinouts of the keypad
 byte colPins[COLS] = { A0, A1, A2, A3 };  //connect to the column pinouts of the keypad
 
 Keypad keyPad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
@@ -75,6 +79,8 @@ String keys = "";
 
 void setup() {
   // put your setup code here, to run once:
+  lcd.init();                      // initialize the lcd 
+  lcd.backlight();
   myStepper.setSpeed(10);
   pinMode(txPin, OUTPUT);
   pinMode(dummyPin, OUTPUT);
@@ -92,6 +98,8 @@ void setup() {
   }
   state = IDLE;
   Serial.println("Press any button to start");
+  lcd.setCursor(0, 0);
+  lcd.print("Transmitter: press any button to start");
 }
 
 void loop() {
@@ -99,7 +107,10 @@ void loop() {
     key = keyPad.getKey();
     if (key) {
       state = ROTATE;
-      Serial.println("rotating");
+      // lcd.clear();
+      // lcd.setCursor(0, 0);
+      // lcd.print("Rotating");
+      // Serial.println("rotating");
     }
   } else if (state == INPUT) {
     readKeyPad();
