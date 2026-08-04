@@ -81,6 +81,9 @@ void setup() {
   // put your setup code here, to run once:
   lcd.init();                      // initialize the lcd 
   lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("TX: press any key to start");
+  lcd.setCursor(0, 3);
   myStepper.setSpeed(10);
   pinMode(txPin, OUTPUT);
   pinMode(dummyPin, OUTPUT);
@@ -98,8 +101,11 @@ void setup() {
   }
   state = IDLE;
   Serial.println("Press any button to start");
-  lcd.setCursor(0, 0);
-  lcd.print("Transmitter: press any button to start");
+ // lcd.setCursor(0, 0);
+
+  //lcd.print("TX: Press any key to start");
+  //lcd.autoscroll();
+
 }
 
 void loop() {
@@ -138,6 +144,7 @@ void loop() {
     attachInterrupt(digitalPinToInterrupt(rxPin), irTriggered, FALLING);
     rxDetected = false;
     state = ESTABLISH;
+    lcd.print("");
     
     startTime = millis();
   } else if (state == ESTABLISH) {
@@ -166,6 +173,7 @@ void loop() {
       sendDigit(c - '0');
     }
     Serial.println("Emitting");
+    lcd.autoscroll();
     state = INPUT;
     count = 0;
     inputted = false;  // can start new transmission
@@ -193,6 +201,7 @@ void readKeyPad() {
     if (key && key != '#') {
       keys += key;
       Serial.println(keys);
+      lcd.print(key);
     }
   }
   if (key == '#' && !inputted) {
