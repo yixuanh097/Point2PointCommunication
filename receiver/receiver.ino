@@ -1,3 +1,6 @@
+#include<Wire.h>
+#include<LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x27,20, 4);
 #define IDLE 0  // in idle state, wait for a burst from transmitter
 #define AWAIT 1  // wait for header signal
 #define SAMPLE 2
@@ -37,17 +40,28 @@ void setup() {
   pinMode(txPin, OUTPUT);
   Serial.begin(9600);
   Serial.println("Initializing");
+  lcd.init();
+  lcd.backlight();
+  printRow(0, "P2P Rx        [    ]");   // [    ] = unlocked, [LOCK] = locked
+  printRow(1, "Status: Listening");
+  printRow(2, "Data: --");
+  printRow(3, "Bits: ----");
   attachInterrupt(digitalPinToInterrupt(rxPin), Triggered, CHANGE);
   stateRx = IDLE;
   Serial.println("Press any button to start");
   lcd.setCursor(0, 0);
   lcd.print("Receiver: Initializing");
+
+
+  
+
 }
 
 void loop() {
   if (stateRx == IDLE){
     if (receivedHigh){
       Serial.println("scanning signal received");
+      printRow(1, "Status: Scanning");
       delay(waitSendTime);
       sendHigh(txPin, burstMs);
       delay(waitHeadTime);
@@ -65,6 +79,8 @@ void loop() {
         Serial.println("Received edge");
         delay(headerWaitTime - sampleTime/2);
         stateRx = SAMPLE;
+        printRow(1, "Status: Sampling");
+        
         startTimeRx = millis();
         
         receivedLow = false;
@@ -74,7 +90,7 @@ void loop() {
       }
     }
   else if (stateRx == SAMPLE) {
-
+          
       if (countRx > 3) {
         // already sampled four times
         countRx = 0;
@@ -95,10 +111,25 @@ void loop() {
       lcd.setCursor(lcdCol, 3);
       lcd.print(readData);
       lcdCol++;
+        
+
+      Serial.println(readData);
+       printRow(1, "Status: Message OK");
+        char line[21];
+        snprintf(line, sizeof(line), "Data: %d", readData);
+        printRow(2, line);
+        char bits[21];
+        snprintf(bits, sizeof(bits), "Bits: %d%d%d%d",
+                 (readData >> 3) & 1, (readData >> 2) & 1,
+                 (readData >> 1) & 1, readData & 1);
+        printRow(3, bits);
+
       if (readData == 15){  // quit signal
       stateRx = IDLE;
       lcdCol = 0;
       }
+
+
         readData = 0;
       }
       else if ((millis() - startTimeRx) >= sampleTime) {
@@ -114,7 +145,9 @@ void loop() {
       //receivedHigh = false;
         startTimeRx = millis();
         countRx++;
+
       }
+       
       
     }
 }
@@ -143,4 +176,14 @@ void sendHigh(int pin, int width) {
 void sendLow(int pin, int width) {
   noTone(pin);  // carrier OFF
   delay(width);
+
+}
+
+void printRow(uint8_t row, const char *text) {
+  char buf[21];
+  for (uint8_t i = 0; i < 20; i++) buf[i] = ' ';
+  buf[20] = '\0';
+  for (uint8_t i = 0; i < 20 && text[i]; i++) buf[i] = text[i];
+  lcd.setCursor(0, row);
+  lcd.print(buf);
 }
